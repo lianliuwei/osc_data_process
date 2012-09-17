@@ -36,6 +36,7 @@ private:
 
   virtual void OnFactoryDestroy()  {
     factory_->RemoveObserver(this);
+    factory_ = NULL;
     observer_->host_thread()->
       PostTask(FROM_HERE, 
         Bind(&FactoryHost::OnFactoryDestory, AsFactoryHost()));
@@ -60,6 +61,7 @@ ObserverCrossThread::Stub* FactoryHost::CreateStub() {
 
 void FactoryHost::OnDataProduced(scoped_refptr<FactoryData> data) {
   LOG(INFO) << "Get Data. id: " << data->id();
+  data_ = data;
 }
 
 void FactoryHost::OnFactoryDestory() {
