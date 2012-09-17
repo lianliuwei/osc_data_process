@@ -27,6 +27,7 @@ void Factory::CreateFactory() {
 
 void Factory::DestroyFactory() {
   DCHECK(g_factory);
+  g_factory->NotifyDestroy();
   delete g_factory;
   g_factory = NULL;
 }
@@ -93,7 +94,7 @@ void Factory::Produce() {
   static int id = 0;
   data_ = new FactoryData();
   data_->set_id(id);
-  string data_string = StringPrintf("Data be produced, id:%d.", id);
+  string data_string = StringPrintf("Data id:%d.", id);
   vector<char> data(data_string.begin(), data_string.end());
   data_->set_data(data);
   LOG(INFO) << "Produce data id: " << id << " time: " << 
