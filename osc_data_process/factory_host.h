@@ -16,9 +16,13 @@ class FactoryHost : public ObserverCrossThread {
 public:
   friend class FactoryStub;
 
-  FactoryHost(base::SingleThreadTaskRunner* task_thread, 
-              base::SingleThreadTaskRunner* host_thread);
+  FactoryHost(TaskRunnerType* task_thread, 
+              TaskRunnerType* host_thread);
   virtual ~FactoryHost() {}
+
+  int GetReceiveNum() const {
+    return receive_;
+  }
 
 private:
   void OnDataProduced(scoped_refptr<FactoryData> data);
@@ -29,5 +33,7 @@ private:
   virtual Stub* CreateStub();
 
   scoped_refptr<FactoryData> data_;
+
+  int receive_;
 };
 

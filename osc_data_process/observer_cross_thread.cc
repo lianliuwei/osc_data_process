@@ -7,8 +7,8 @@
 
 using namespace base;
 
-ObserverCrossThread::ObserverCrossThread(SingleThreadTaskRunner* task_thread, 
-                                         SingleThreadTaskRunner* host_thread)
+ObserverCrossThread::ObserverCrossThread(TaskRunnerType* task_thread, 
+                                         TaskRunnerType* host_thread)
     : stub_(NULL) 
     , task_thread_(task_thread)
     , host_thread_(host_thread)
@@ -34,6 +34,8 @@ void ObserverCrossThread::PostInit() {
 void ObserverCrossThread::ReplyInit() {
   DCHECK(destroy_ == false) << "destroy before init. very bad happen";
   init_ = true;
+  // notify initialized.
+  OnInit();
 }
 
 void ObserverCrossThread::Destroy() {
@@ -51,7 +53,9 @@ void ObserverCrossThread::PostDestroy() {
 }
 
 void ObserverCrossThread::ReplyDestroy() {
-  destroy_ = true; 
+  destroy_ = true;
+  // notify Destroyed.
+  OnDestroy();
 }
 
 ObserverCrossThread::~ObserverCrossThread() {
@@ -59,12 +63,12 @@ ObserverCrossThread::~ObserverCrossThread() {
     || (init_ == false && destroy_ == false));
 }
 
-void ObserverCrossThread::set_task_thread(SingleThreadTaskRunner* task_thread) {
+void ObserverCrossThread::set_task_thread(TaskRunnerType* task_thread) {
   DCHECK(init_ == false) << "can no set the task thread after init.";
   task_thread_ = task_thread;
 }
 
-void ObserverCrossThread::set_host_thread(SingleThreadTaskRunner* host_thread) {
+void ObserverCrossThread::set_host_thread(TaskRunnerType* host_thread) {
   DCHECK(init_ == false) << "can no set the host thread after init.";
   host_thread_ = host_thread;
 }

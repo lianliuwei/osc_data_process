@@ -10,31 +10,37 @@
 class ObserverCrossThread 
     : public base::RefCountedThreadSafe<ObserverCrossThread> {
 public:
-  ObserverCrossThread(base::SingleThreadTaskRunner* task_thread, 
-                      base::SingleThreadTaskRunner* host_thread);
+  typedef base::SingleThreadTaskRunner TaskRunnerType;
+
+  ObserverCrossThread(TaskRunnerType* task_thread, 
+                      TaskRunnerType* host_thread);
   virtual ~ObserverCrossThread();
 
-  virtual void Init();
-  void IsInit();
-  virtual void Destroy();
-  void IsDestroyed();
+  void Init();
+  void Destroy();
 
-  base::SingleThreadTaskRunner* task_thread() const { return task_thread_; }
+  TaskRunnerType* task_thread() const { return task_thread_; }
 
-  base::SingleThreadTaskRunner* host_thread() const { return host_thread_; }
+  TaskRunnerType* host_thread() const { return host_thread_; }
 
   class Stub {
-    public:
-      Stub(ObserverCrossThread* observer);
-      virtual ~Stub() {};
+   public:
+    Stub(ObserverCrossThread* observer);
+    virtual ~Stub() {}
 
-      void Destroy();
+    void Destroy();
 
-    protected:
-      scoped_refptr<ObserverCrossThread> observer_;
+   protected:
+    scoped_refptr<ObserverCrossThread> observer_;
+   
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Stub);
   };
 
 protected:
+  virtual void OnInit() {}
+  virtual void OnDestroy() {}
+
   void PostInit();
   void ReplyInit();
 
@@ -46,9 +52,9 @@ protected:
   virtual Stub* CreateStub() = 0;
 
   // set task and host before Init
-  void set_task_thread(base::SingleThreadTaskRunner* task_thread);
+  void set_task_thread(TaskRunnerType* task_thread);
 
-  void set_host_thread(base::SingleThreadTaskRunner* host_thread);
+  void set_host_thread(TaskRunnerType* host_thread);
   
 
   Stub* stub() const { return stub_; }
@@ -60,11 +66,13 @@ protected:
 private:
   Stub* stub_;
   
-  base::SingleThreadTaskRunner* task_thread_;
+  TaskRunnerType* task_thread_;
 
-  base::SingleThreadTaskRunner* host_thread_;
+  TaskRunnerType* host_thread_;
 
   bool init_;
   bool destroy_;
+
+  DISALLOW_COPY_AND_ASSIGN(ObserverCrossThread);
 };
 

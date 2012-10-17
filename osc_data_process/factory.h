@@ -12,7 +12,7 @@ public:
   // call when the data produce
   virtual void OnDataProduced(scoped_refptr<FactoryData> data) = 0;
 
-  // call when the Factory is going to Destroy. 
+  // call when the Factory is going to Destroy.
   // the Factory is exist when the function is call.
   virtual void OnFactoryDestroy() = 0;
 
@@ -23,19 +23,17 @@ protected:
 // produce the osc data at a very high speed, more then 1 thousand a second.
 // it run on the factory thread.
 // only can call on the factory thread.
-class Factory : public base::SupportsWeakPtr<Factory> {
+class Factory {
 public:
   static Factory* GetFactory();
-  static void CreateFactory();
-  static void DestroyFactory();
-  static void StartFactory();
-  static void StopFactory();
 
-  Factory();
-  virtual ~Factory();
+  Factory(base::SingleThreadTaskRunner* factory_thread);
 
   void Start();
   void Stop();
+
+  // after call this the factory is delete itself.
+  void Destroy();
   void set_speed(int speed);
 
   void AddObserver(FactoryObserver* obs) {
@@ -49,6 +47,8 @@ public:
   FactoryData* GetLastData() const;
 
 private:
+  virtual ~Factory();
+
   // call produce or do nothing (go to sleep).
   void Schedule();
   void Produce();
@@ -75,4 +75,6 @@ private:
   scoped_refptr<FactoryData> data_;
 
   ObserverList<FactoryObserver> observer_list_;
+
+  base::WeakPtrFactory<Factory> weak_factory_;
 };

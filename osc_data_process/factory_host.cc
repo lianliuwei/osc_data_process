@@ -60,15 +60,17 @@ ObserverCrossThread::Stub* FactoryHost::CreateStub() {
 }
 
 void FactoryHost::OnDataProduced(scoped_refptr<FactoryData> data) {
-  LOG(INFO) << "Get Data. id: " << data->id();
+  VLOG(1) << "Get Data. id: " << data->id();
   data_ = data;
+  ++receive_;
 }
 
 void FactoryHost::OnFactoryDestory() {
-  LOG(INFO) << "Factory Destroy.";
+  VLOG(1) << "Factory Destroy.";
 }
 
-FactoryHost::FactoryHost(SingleThreadTaskRunner* task_thread, 
-                         SingleThreadTaskRunner* host_thread)
-    : ObserverCrossThread(task_thread, host_thread) {
+FactoryHost::FactoryHost(TaskRunnerType* task_thread, 
+                         TaskRunnerType* host_thread)
+    : ObserverCrossThread(task_thread, host_thread)
+    , receive_(0) {
 }

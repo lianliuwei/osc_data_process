@@ -13,33 +13,9 @@ namespace {
 static Factory* g_factory = NULL;
 }
 
-
 Factory* Factory::GetFactory() {
   DCHECK(g_factory) << "need create Factory first.";
   return g_factory;
-}
-
-void Factory::CreateFactory() {
-  DCHECK(g_factory == NULL) << "CreateFactory must be call only once.";
-  g_factory = new Factory();
-  g_factory->factory_thread_ = MessageLoopProxy::current();
-}
-
-void Factory::DestroyFactory() {
-  DCHECK(g_factory);
-  g_factory->NotifyDestroy();
-  delete g_factory;
-  g_factory = NULL;
-}
-
-void Factory::StartFactory() {
-  DCHECK(g_factory);
-  g_factory->Start();
-}
-
-void Factory::StopFactory() {
-  DCHECK(g_factory);
-  g_factory->Stop();
 }
 
 void Factory::Start() {
@@ -48,9 +24,10 @@ void Factory::Start() {
     LOG(WARNING) << "the Factory already started, do nothing.";
     return;
   }
-  
+
   start_ = true;
-  factory_thread_->PostTask(FROM_HERE, Bind(&Factory::Schedule, AsWeakPtr()));
+  factory_thread_->PostTask(FROM_HERE, 
+      Bind(&Factory::Schedule, weak_factory_.GetWeakPtr()));
 }
 
 void Factory::Stop() {
@@ -68,10 +45,10 @@ void Factory::Schedule() {
   if (!last_ticks_.is_null()) {
     TimeTicks now = TimeTicks::Now();
     int64 us = (now - last_ticks_).InMicroseconds();
-    LOG(INFO) << "Schedule after: " << 
+    VLOG(1) << "Schedule after: " <<
       us << " us";
 
-    LOG_IF(INFO, us != 0) << "rate is " << 1e6 / us << " Hz";
+    VLOG_IF(1, us != 0) << "rate is " << 1e6 / us << " Hz";
   }
   last_ticks_ = TimeTicks::Now();
 
@@ -83,8 +60,9 @@ void Factory::Schedule() {
   // wait and run again.
   DCHECK(speed_ > 0);
   int64 us = static_cast<int64>(1e6 / speed_);
-  factory_thread_->PostDelayedTask(FROM_HERE, 
-    Bind(&Factory::Schedule, AsWeakPtr()), TimeDelta::FromMicroseconds(us));
+  factory_thread_->PostDelayedTask(FROM_HERE,
+      Bind(&Factory::Schedule, weak_factory_.GetWeakPtr()), 
+      TimeDelta::FromMicroseconds(us));
 
   // now Produce one data.
   Produce();
@@ -97,20 +75,31 @@ void Factory::Produce() {
   string data_string = StringPrintf("Data id:%d.", id);
   vector<char> data(data_string.begin(), data_string.end());
   data_->set_data(data);
-  LOG(INFO) << "Produce data id: " << id << " time: " << 
+  VLOG(1) << "Produce data id: " << id << " time: " <<
     TimeTicks::Now().ToInternalValue();
   NotifyProduced();
   ++id;
 }
 // speed ad 1000 a second.
-Factory::Factory()
-    : start_(false)
-    , speed_(1000) {
+Factory::Factory(SingleThreadTaskRunner* factory_thread)
+    : factory_thread_(factory_thread)
+    , start_(false)
+    , speed_(1000)
+    , ALLOW_THIS_IN_INITIALIZER_LIST(weak_factory_(this)) {
+  DCHECK(factory_thread);
   data_ = new FactoryData();
   data_->set_id(-1);
+  g_factory = this;
 }
 
 Factory::~Factory() {}
+
+
+void Factory::Destroy() {
+  NotifyDestroy();
+  weak_factory_.InvalidateWeakPtrs();
+  delete this;
+}
 
 FactoryData* Factory::GetLastData() const {
   return data_.get();
