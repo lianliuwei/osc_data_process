@@ -28,6 +28,7 @@ public:
     Stub(ObserverCrossThread* observer);
     virtual ~Stub() {}
 
+    // obj no exist after Destroy()
     void Destroy();
 
    protected:

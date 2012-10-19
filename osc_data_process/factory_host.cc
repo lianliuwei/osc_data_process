@@ -40,6 +40,7 @@ private:
     observer_->host_thread()->
       PostTask(FROM_HERE, 
         Bind(&FactoryHost::OnFactoryDestory, AsFactoryHost()));
+    // obj no exit after Destroy()
     Destroy();
   }
   

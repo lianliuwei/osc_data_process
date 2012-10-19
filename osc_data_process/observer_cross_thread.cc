@@ -76,8 +76,13 @@ void ObserverCrossThread::set_host_thread(TaskRunnerType* host_thread) {
 
 // let the host destroy us.
 void ObserverCrossThread::Stub::Destroy() {
-  observer_->host_thread()->PostTask(FROM_HERE,
-    Bind(&ObserverCrossThread::Destroy, observer_));
+  scoped_refptr<ObserverCrossThread> observer = observer_;
+  TaskRunnerType* host = observer_->host_thread();
+
+  observer_->PostDestroy();
+  // must no access the obj member variable, the obj is no exist NOW !!!
+  host->PostTask(FROM_HERE,
+      Bind(&ObserverCrossThread::ReplyDestroy, observer));
 }
 
 ObserverCrossThread::Stub::Stub(ObserverCrossThread* observer)
