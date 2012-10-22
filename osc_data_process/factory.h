@@ -44,6 +44,9 @@ public:
     observer_list_.RemoveObserver(obs);
   }
 
+  bool HasObserver(FactoryObserver* obs) {
+    return observer_list_.HasObserver(obs);
+  }
   FactoryData* GetLastData() const;
 
 private:

@@ -18,7 +18,7 @@ public:
 
   FactoryHost(TaskRunnerType* task_thread, 
               TaskRunnerType* host_thread);
-  virtual ~FactoryHost() {}
+  virtual ~FactoryHost();
 
   int GetReceiveNum() const {
     return receive_;

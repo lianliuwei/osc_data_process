@@ -23,7 +23,10 @@ public:
     AsFactoryHost()->data_ = data;
     factory_->AddObserver(this);
   }
-  virtual ~FactoryStub() {}
+  virtual ~FactoryStub() {
+    if (factory_ && factory_->HasObserver(this))
+      factory_->RemoveObserver(this);
+  }
 
 private:
   // factoryObserver Implement
@@ -74,4 +77,7 @@ FactoryHost::FactoryHost(TaskRunnerType* task_thread,
                          TaskRunnerType* host_thread)
     : ObserverCrossThread(task_thread, host_thread)
     , receive_(0) {
+}
+
+FactoryHost::~FactoryHost() {
 }
