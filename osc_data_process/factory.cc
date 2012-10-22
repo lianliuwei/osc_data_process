@@ -92,7 +92,10 @@ Factory::Factory(SingleThreadTaskRunner* factory_thread)
   g_factory = this;
 }
 
-Factory::~Factory() {}
+Factory::~Factory() {
+  g_factory = NULL;
+}
+
 
 
 void Factory::Destroy() {
