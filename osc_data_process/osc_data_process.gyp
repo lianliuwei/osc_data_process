@@ -38,7 +38,7 @@
       'target_name': 'osc_data_process_unittests',
       'type': '<(gtest_target_type)',
       'sources': [
-	      'factory_unittest.cc',
+	      'factory_host_unittest.cc',
       ],
       'dependencies': [
         '../base/base.gyp:base',
