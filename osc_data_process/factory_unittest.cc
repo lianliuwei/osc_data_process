@@ -17,12 +17,13 @@ class TestFactoryObserver : public FactoryObserver {
 public:
   TestFactoryObserver()
     : count_(0) {}
+  virtual ~TestFactoryObserver() {}
 
   virtual void OnDataProduced(scoped_refptr<FactoryData> data)  {
     ++count_;
   }
 
-  virtual void OnFactoryDestroy()  {
+  virtual void OnFactoryDestroy() {
   }
 
 int count_;
@@ -33,6 +34,22 @@ void CreateFactory() {
   EXPECT_TRUE(Factory::GetFactory());
 }
 }
+
+class FactoryHostStub : public FactoryHost {
+public:
+  FactoryHostStub (TaskRunnerType* task_thread, 
+      TaskRunnerType* host_thread) 
+      : FactoryHost(task_thread, host_thread)
+      , destroy_time_(0) {}
+
+  virtual ~FactoryHostStub() {}
+
+  virtual void OnDestroy()  {
+    ++destroy_time_;
+  }
+
+  int destroy_time_;
+};
 
 class FactoryHostTest : public testing::Test {
 
@@ -49,55 +66,85 @@ protected:
 
 public:
   void CreateHost() {
-    host_ = new FactoryHost(factory_loop_, host_loop_);
+    host_ = new FactoryHostStub(factory_loop_, host_loop_);
     host_->Init();
     factory_loop_->PostTask(FROM_HERE, 
         Bind(&FactoryHostTest::StartAndWatch, Unretained(this)));
-    factory_loop_->PostDelayedTask(FROM_HERE, 
-        Bind(&FactoryHostTest::StopAndDestroy, Unretained(this)), 
-        TimeDelta::FromSeconds(2));
   }
 
   void StartAndWatch() {
     ASSERT_TRUE(observer_.get());
     Factory::GetFactory()->AddObserver(observer_.get());
     Factory::GetFactory()->Start();
+    if (remove_host_first_)
+      host_loop_->PostDelayedTask(FROM_HERE,
+          Bind(&FactoryHostTest::RemoveHost, Unretained(this)),
+          TimeDelta::FromSeconds(1));
+    factory_loop_->PostDelayedTask(FROM_HERE, 
+        Bind(&FactoryHostTest::StopAndDestroy, Unretained(this)), 
+        TimeDelta::FromSeconds(2));
+  }
+
+  void RemoveHost() {
+    host_->Destroy();
   }
 
   void StopAndDestroy() {
     Factory::GetFactory()->RemoveObserver(observer_.get());
     Factory::GetFactory()->Destroy();
-    host_loop_->PostTask(FROM_HERE, Bind(&FactoryHostTest::AssertDataNum, 
-      Unretained(this)));
+    if (remove_host_first_)
+      host_loop_->PostTask(FROM_HERE, Bind(&FactoryHostTest::AssertHostDestroy, 
+          Unretained(this)));
+    else
+      host_loop_->PostTask(FROM_HERE, Bind(&FactoryHostTest::AssertDataNum, 
+          Unretained(this)));
   } 
 
   void AssertDataNum() {
     EXPECT_EQ(observer_->count_, host_->GetReceiveNum());
+    EXPECT_EQ(host_->destroy_time_ == 0 || host_->destroy_time_ == 1, true);
     host_ = NULL;
-    observer_.release();
     MessageLoop::current()->Quit();
   }
 
-  scoped_refptr<FactoryHost> host_;
-  scoped_ptr<TestFactoryObserver> observer_;
-  scoped_refptr<MessageLoopProxy> host_loop_;
-  scoped_refptr<MessageLoopProxy> factory_loop_;
-};
+  void AssertHostDestroy() {
+    EXPECT_EQ(host_->destroy_time_, 1);
+    host_ = NULL;
+    MessageLoop::current()->Quit();
+  }
 
+  void RunFactoryHostTest() {
+    MessageLoop loop(MessageLoop::TYPE_DEFAULT);
+    host_loop_ = loop.message_loop_proxy();
 
-TEST_F(FactoryHostTest, TestNoLostProductData) {
-  MessageLoop loop(MessageLoop::TYPE_DEFAULT);
-  host_loop_ = loop.message_loop_proxy();
-
-  Thread thread("Factory thread");
-  thread.Start();
-  factory_loop_ = thread.message_loop_proxy();
-  factory_loop_->PostTaskAndReply(FROM_HERE, 
+    Thread thread("Factory thread");
+    thread.Start();
+    factory_loop_ = thread.message_loop_proxy();
+    factory_loop_->PostTaskAndReply(FROM_HERE, 
       Bind(&CreateFactory), 
       Bind(&FactoryHostTest::CreateHost, Unretained(this)));
 
-  loop.Run();
+    loop.Run();
 
-  factory_loop_ = NULL;
-  host_loop_ = NULL;
+    factory_loop_ = NULL;
+    host_loop_ = NULL;
+  }
+
+  scoped_refptr<FactoryHostStub> host_;
+  scoped_ptr<TestFactoryObserver> observer_;
+  scoped_refptr<MessageLoopProxy> host_loop_;
+  scoped_refptr<MessageLoopProxy> factory_loop_;
+  // for test host remove itself first.
+  bool remove_host_first_;
+};
+
+// NOTE start one thread leak 196 - 36 - 48 - 24 byte memory.
+TEST_F(FactoryHostTest, TestNoLostProductData) {
+  remove_host_first_ = false;
+  RunFactoryHostTest();
+}
+
+TEST_F(FactoryHostTest, TestFactoryHostRemoveObserverFirst) {
+  remove_host_first_ = true;
+  RunFactoryHostTest();
 }
