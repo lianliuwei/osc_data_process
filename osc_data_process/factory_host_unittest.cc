@@ -102,6 +102,7 @@ public:
   } 
 
   void AssertDataNum() {
+    LOG(INFO) << "Factory create " << observer_->count_ << " data";
     EXPECT_EQ(observer_->count_, host_->GetReceiveNum());
     EXPECT_EQ(host_->destroy_time_ == 0 || host_->destroy_time_ == 1, true);
     host_ = NULL;
