@@ -4,9 +4,6 @@
 
 #include "osc_data_process/factory.h"
 
-namespace {
-class FactoryStub;
-}
 // run on each thread the listen to the Factory.
 // can only be call on the listener thread.
 // has a ref to data. the data may be the latest or may not. it depend on the 
@@ -24,16 +21,43 @@ public:
     return receive_;
   }
 
-private:
-  void OnDataProduced(scoped_refptr<FactoryData> data);
+protected:
+  // ObserverCrossThread Implement
+  virtual Stub* CreateStub() OVERRIDE;
+
+  virtual void OnDataProduced(scoped_refptr<FactoryData> data);
 
   // the Factory is be Destroyed.
-  void OnFactoryDestory();
+  virtual void OnFactoryDestory();
 
-  virtual Stub* CreateStub();
+private:
 
   scoped_refptr<FactoryData> data_;
 
   int receive_;
 };
 
+// this class watch the Factory change and notify the Factory Host.
+// when the Detach() is call, the Factory may be Destoryed.
+class FactoryStub : public ObserverCrossThread::Stub
+                  , public FactoryObserver {
+public:
+  FactoryStub(Factory* factory, FactoryHost* host);
+  virtual ~FactoryStub() {
+    if (factory_ && factory_->HasObserver(this))
+      factory_->RemoveObserver(this);
+  }
+
+protected:
+  // factoryObserver Implement
+  virtual void OnDataProduced(scoped_refptr<FactoryData> data);
+
+  virtual void OnFactoryDestroy();
+  
+private:
+  FactoryHost* AsFactoryHost() {
+    return static_cast<FactoryHost*>(observer_.get());
+  }
+
+  Factory* factory_;
+};
