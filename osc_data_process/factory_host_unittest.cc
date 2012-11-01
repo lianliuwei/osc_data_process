@@ -9,9 +9,19 @@
 
 #include "osc_data_process/factory.h"
 #include "osc_data_process/factory_host.h"
+#include "osc_data_process/freq_factory_host.h"
 
 using namespace base;
 namespace {
+
+// FreqFactoryHost receive data freq.
+static const int kHz = 351;
+
+// factory run second.
+static const int kFactoryRun = 2;
+
+// if FactoryHost remove first, remove at this second.
+static const int kFactoryHostRemove = 1;
 
 class TestFactoryObserver : public FactoryObserver {
 public:
@@ -19,7 +29,7 @@ public:
     : count_(0) {}
   virtual ~TestFactoryObserver() {}
 
-  virtual void OnDataProduced(scoped_refptr<FactoryData> data)  {
+  virtual void OnDataProduced(scoped_refptr<FactoryData> data) {
     ++count_;
   }
 
@@ -33,26 +43,10 @@ void CreateFactory() {
   new Factory(MessageLoopProxy::current().get());
   EXPECT_TRUE(Factory::GetFactory());
 }
+
 }
 
-class FactoryHostStub : public FactoryHost {
-public:
-  FactoryHostStub (TaskRunnerType* task_thread, 
-      TaskRunnerType* host_thread) 
-      : FactoryHost(task_thread, host_thread)
-      , destroy_time_(0) {}
-
-  virtual ~FactoryHostStub() {}
-
-  virtual void OnDestroy()  {
-    ++destroy_time_;
-  }
-
-  int destroy_time_;
-};
-
 class FactoryHostTest : public testing::Test {
-
 protected:
   virtual void SetUp() {
     observer_.reset(new TestFactoryObserver);
@@ -65,8 +59,14 @@ protected:
   }
 
 public:
+  virtual FactoryHost* CreateFactoryHost() {
+    return new FactoryHost(factory_loop_, host_loop_);
+  }
+
+  virtual ~FactoryHostTest() {}
+
   void CreateHost() {
-    host_ = new FactoryHostStub(factory_loop_, host_loop_);
+    host_ = CreateFactoryHost();
     host_->Init();
     factory_loop_->PostTask(FROM_HERE, 
         Bind(&FactoryHostTest::StartAndWatch, Unretained(this)));
@@ -79,10 +79,10 @@ public:
     if (remove_host_first_)
       host_loop_->PostDelayedTask(FROM_HERE,
           Bind(&FactoryHostTest::RemoveHost, Unretained(this)),
-          TimeDelta::FromSeconds(1));
+          TimeDelta::FromSeconds(kFactoryHostRemove));
     factory_loop_->PostDelayedTask(FROM_HERE, 
         Bind(&FactoryHostTest::StopAndDestroy, Unretained(this)), 
-        TimeDelta::FromSeconds(2));
+        TimeDelta::FromSeconds(kFactoryRun));
   }
 
   void RemoveHost() {
@@ -93,23 +93,25 @@ public:
     Factory::GetFactory()->RemoveObserver(observer_.get());
     Factory::GetFactory()->Destroy();
     if (remove_host_first_)
-      host_loop_->PostTask(FROM_HERE, Bind(&FactoryHostTest::AssertHostDestroy, 
+      host_loop_->PostTask(FROM_HERE, Bind(&FactoryHostTest::AssertHostRemoveFirst, 
           Unretained(this)));
     else
-      host_loop_->PostTask(FROM_HERE, Bind(&FactoryHostTest::AssertDataNum, 
+      host_loop_->PostTask(FROM_HERE, Bind(&FactoryHostTest::AssertFactoryDestroyFirst, 
           Unretained(this)));
     host_loop_->PostTask(FROM_HERE, MessageLoop::QuitClosure());
   } 
 
-  void AssertDataNum() {
+  virtual void AssertFactoryDestroyFirst() {
     LOG(INFO) << "Factory create " << observer_->count_ << " data";
-    EXPECT_EQ(observer_->count_, host_->GetReceiveNum());
-    EXPECT_EQ(host_->destroy_time_ == 0 || host_->destroy_time_ == 1, true);
+    EXPECT_EQ(observer_->count_, host_->receive());
+    EXPECT_EQ(host_->destroy_time()== 0 || host_->destroy_time() == 1, true);
+    EXPECT_EQ(host_->factory_destroy(), 1);
     host_ = NULL;
   }
 
-  void AssertHostDestroy() {
-    EXPECT_EQ(host_->destroy_time_, 1);
+  virtual void AssertHostRemoveFirst() {
+    EXPECT_EQ(host_->destroy_time(), 1);
+    EXPECT_EQ(host_->factory_destroy(), 0);
     host_ = NULL;
   }
 
@@ -130,7 +132,7 @@ public:
     host_loop_ = NULL;
   }
 
-  scoped_refptr<FactoryHostStub> host_;
+  scoped_refptr<FactoryHost> host_;
   scoped_ptr<TestFactoryObserver> observer_;
   scoped_refptr<MessageLoopProxy> host_loop_;
   scoped_refptr<MessageLoopProxy> factory_loop_;
@@ -145,6 +147,39 @@ TEST_F(FactoryHostTest, TestNoLostProductData) {
 }
 
 TEST_F(FactoryHostTest, TestFactoryHostRemoveObserverFirst) {
+  remove_host_first_ = true;
+  RunFactoryHostTest();
+}
+
+class FreqFactoryHostTest : public FactoryHostTest {
+public:
+  virtual FactoryHost* CreateFactoryHost() {
+    // receive the data at 60Hz
+    return new FreqFactoryHost(factory_loop_, host_loop_, kHz);
+  }
+  
+  virtual ~FreqFactoryHostTest() {}
+
+  virtual void AssertFactoryDestroyFirst() {
+    LOG(INFO) << "Factory create " << observer_->count_ << " data.";
+    LOG(INFO) << "FreqFactoryHost receive: " << host_->receive() << " at " 
+      << kHz << "Hz.";
+    // give or take 3 data.
+    EXPECT_LE(kFactoryRun*kHz - 3, host_->receive());
+    EXPECT_GE(kFactoryRun*kHz + 3, host_->receive());
+    EXPECT_EQ(host_->destroy_time() == 0 || host_->destroy_time() == 1, true);
+    EXPECT_EQ(host_->factory_destroy(), 1);
+    host_ = NULL;
+  }
+
+};
+
+TEST_F(FreqFactoryHostTest, TestFreqReceiveProductData) {
+  remove_host_first_ = false;
+  RunFactoryHostTest();
+}
+
+TEST_F(FreqFactoryHostTest, TestFactoryHostRemoveObserverFirst) {
   remove_host_first_ = true;
   RunFactoryHostTest();
 }
