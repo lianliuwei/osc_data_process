@@ -17,9 +17,12 @@ public:
               TaskRunnerType* host_thread);
   virtual ~FactoryHost();
 
-  int GetReceiveNum() const {
+  int receive() const {
     return receive_;
   }
+  int destroy_time() const { return destroy_time_; }
+  int factory_destroy() const { return factory_destroy_; }
+
 
 protected:
   // ObserverCrossThread Implement
@@ -30,11 +33,14 @@ protected:
   // the Factory is be Destroyed.
   virtual void OnFactoryDestory();
 
+  virtual void OnDestroy();
 private:
 
   scoped_refptr<FactoryData> data_;
 
   int receive_;
+  int destroy_time_;
+  int factory_destroy_;
 };
 
 // this class watch the Factory change and notify the Factory Host.

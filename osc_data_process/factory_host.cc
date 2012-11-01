@@ -22,12 +22,19 @@ void FactoryHost::OnDataProduced(scoped_refptr<FactoryData> data) {
 
 void FactoryHost::OnFactoryDestory() {
   VLOG(1) << "Factory Destroy.";
+  ++factory_destroy_;
+}
+
+void FactoryHost::OnDestroy() {
+  ++destroy_time_;
 }
 
 FactoryHost::FactoryHost(TaskRunnerType* task_thread, 
                          TaskRunnerType* host_thread)
     : ObserverCrossThread(task_thread, host_thread)
-    , receive_(0) {
+    , receive_(0)
+    , destroy_time_(0)
+    , factory_destroy_(0) {
 }
 
 FactoryHost::~FactoryHost() {
